@@ -54,7 +54,7 @@ public:
    void dump_with_types(ostream&,int);
    bool isCallDecl(){return false;}
    void check();
-   void code(ostream&){}
+   void code(ostream&);
 };
 
 class CallDecl_class : public Decl_class {

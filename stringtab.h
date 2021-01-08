@@ -39,6 +39,7 @@ public:
                          
   // is the integer argument equal to the index of this Entry?
   bool equal_index(int ind) const           { return ind == index; }
+  int get_index() const                     { return index; }
 
   ostream& print(ostream& s) const;
 

@@ -17,6 +17,8 @@
 #define MAXINT  100000000    
 #define WORD_SIZE    4
 #define LOG_WORD_SIZE 2     // for logical shifts
+#define INT 1
+#define FLOAT 2
 
 // Global names
 #define GLOBAL                  "\t.globl\t"

@@ -17,8 +17,8 @@ main:
 	pushq	 %r15
 	subq	$8, %rsp
 	movq	$.LC0, %rax
-	movq	%rax, -64(%rbp)
-	movq	-64(%rbp), %rdi
+	movq	%rax, -56(%rbp)
+	movq	-56(%rbp), %rdi
 	subq	$8, %rsp
 	movl	$0, %eax
 	call	 printf

@@ -1,0 +1,15 @@
+/* this a simple example of SEAL
+    you can change the content whatever you want
+    the original file may not consist of all the syntax
+*/
+
+func main() Void{
+    var a Int;
+    var b Float;
+    b=1-2.1;
+    printf("b=%f,a=%f",b,-1.0);
+
+    return;
+}
+
+
