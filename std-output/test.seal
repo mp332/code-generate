@@ -6,8 +6,11 @@
 func main() Void{
     var a Int;
     var b Float;
-    b=1-2.1;
-    printf("b=%f,a=%f",b,-1.0);
+    var f Bool;
+    f=1>=1.1;
+    f=1.1>=1;
+    f=1.1>=1.1;
+    f=1>=1;
 
     return;
 }

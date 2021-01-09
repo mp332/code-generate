@@ -445,6 +445,8 @@ bool is_float_calulate=0; //区别浮点数运算和整数运算
 bool is_e1 = true; //算数表达式里的第一个操作数
 int e1_shift = 0; //算数表达式里第一个操作数的偏移量
 int e2_shift = 0;
+int position_num = 0; //POS的标识
+int position_num_current =0; //已经定义的POS
 SymbolTable<char *,int> *var_shift = new SymbolTable<char *, int>();
 // SymbolTable<int ,int> *int_shift = new SymbolTable<int, int>();
 
@@ -845,7 +847,18 @@ void Divide_class::code(ostream &s) {
 }
 
 void Mod_class::code(ostream &s) {
- 
+  e1->code(s);
+  e2->code(s);
+
+  rbp_top -= 8;
+  emit_sub("$8",RSP,s);
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  emit_cqto(s);
+  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+  emit_div(RBX,s);
+  s << MOV << RDX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
+  result_shift=rbp_top; 
+
 }
 
 void Neg_class::code(ostream &s) {
@@ -873,43 +886,326 @@ void Neg_class::code(ostream &s) {
 }
 
 void Lt_class::code(ostream &s) {
-  
+  e1->code(s);
+  e2->code(s);
+  emit_sub("$8",RSP,s);
+  rbp_top -= 8;
+  if(e1->getType()==Int && e2->getType()==Int)
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
+  emit_cmp(RDX, RAX, s);
+  }
+  else if(e1->getType()==Float && e2->getType()==Int)
+  {
+   s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+   s << CVTSI2SDQ <<RAX <<COMMA << XMM0 <<endl;
+   s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+   emit_ucompisd(XMM0,XMM1,s);
+  }
+  else if(e1->getType()==Int && e2->getType()==Float)
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
+  s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+  emit_ucompisd(XMM1,XMM0,s);
+  }
+  else
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+  emit_ucompisd(XMM0,XMM1,s);
+  }
+  if(e1->getType()==Int && e2->getType()==Int)  s << JL <<' '<< POSITION << position_num <<endl;
+  else  s << JB <<' '<< POSITION << position_num <<endl;
+  position_num++;
+  emit_mov("$0",RAX,s);
+  s << JMP <<' '<< POSITION << position_num << endl;
+  position_num++;
+  s << POSITION << position_num_current<<':' << endl;
+  position_num_current++;
+  emit_mov("$1",RAX,s);
+  s << POSITION << position_num_current<<':' << endl;
+  position_num_current++;
+  s << MOV << RAX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
+  result_shift=rbp_top;
 }
 
 void Le_class::code(ostream &s) {
- 
+  e1->code(s);
+  e2->code(s);
+  emit_sub("$8",RSP,s);
+  rbp_top -= 8;
+  if(e1->getType()==Int && e2->getType()==Int)
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
+  emit_cmp(RDX, RAX, s);
+  }
+  else if(e1->getType()==Float && e2->getType()==Int)
+  {
+   s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+   s << CVTSI2SDQ <<RAX <<COMMA << XMM0 <<endl;
+   s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+   emit_ucompisd(XMM0,XMM1,s);
+  }
+  else if(e1->getType()==Int && e2->getType()==Float)
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
+  s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+  emit_ucompisd(XMM1,XMM0,s);
+  }
+  else
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+  emit_ucompisd(XMM0,XMM1,s);
+  }
+  if(e1->getType()==Int && e2->getType()==Int)  s << JLE <<' '<< POSITION << position_num <<endl;
+  else  s << JBE <<' '<< POSITION << position_num <<endl;
+  position_num++;
+  emit_mov("$0",RAX,s);
+  s << JMP <<' '<< POSITION << position_num << endl;
+  position_num++;
+  s << POSITION << position_num_current<<':' << endl;
+  position_num_current++;
+  emit_mov("$1",RAX,s);
+  s << POSITION << position_num_current<<':' << endl;
+  position_num_current++;
+  s << MOV << RAX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
+  result_shift=rbp_top; 
 }
 
 void Equ_class::code(ostream &s) {
- 
+  e1->code(s);
+  e2->code(s);
+  emit_sub("$8",RSP,s);
+  rbp_top -= 8;
+  if(e1->getType()==Int && e2->getType()==Int)
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
+  emit_cmp(RDX, RAX, s);
+  }
+  else if(e1->getType()==Float && e2->getType()==Int)
+  {
+   s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+   s << CVTSI2SDQ <<RAX <<COMMA << XMM0 <<endl;
+   s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+   emit_ucompisd(XMM0,XMM1,s);
+  }
+  else if(e1->getType()==Int && e2->getType()==Float)
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
+  s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+  emit_ucompisd(XMM1,XMM0,s);
+  }
+  else
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+  emit_ucompisd(XMM0,XMM1,s);
+  }
+  s << JE <<' '<< POSITION << position_num <<endl;
+  position_num++;
+  emit_mov("$0",RAX,s);
+  s << JMP <<' '<< POSITION << position_num << endl;
+  position_num++;
+  s << POSITION << position_num_current<<':' << endl;
+  position_num_current++;
+  emit_mov("$1",RAX,s);
+  s << POSITION << position_num_current<<':' << endl;
+  position_num_current++;
+  s << MOV << RAX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
+  result_shift=rbp_top;  
 }
 
 void Neq_class::code(ostream &s) {
- 
+  e1->code(s);
+  e2->code(s);
+  emit_sub("$8",RSP,s);
+  rbp_top -= 8;
+
+  if(e1->getType()==Int && e2->getType()==Int)
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
+  emit_cmp(RDX, RAX, s);
+  }
+  else if(e1->getType()==Float && e2->getType()==Int)
+  {
+   s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+   s << CVTSI2SDQ <<RAX <<COMMA << XMM0 <<endl;
+   s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+   emit_ucompisd(XMM0,XMM1,s);
+  }
+  else if(e1->getType()==Int && e2->getType()==Float)
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
+  s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+  emit_ucompisd(XMM1,XMM0,s);
+  }
+  else
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+  emit_ucompisd(XMM0,XMM1,s);
+  }
+  
+
+  s << JNE <<' '<< POSITION << position_num <<endl;
+  position_num++;
+  emit_mov("$0",RAX,s);
+  s << JMP <<' '<< POSITION << position_num << endl;
+  position_num++;
+  s << POSITION << position_num_current<<':' << endl;
+  position_num_current++;
+  emit_mov("$1",RAX,s);
+  s << POSITION << position_num_current<<':' << endl;
+  position_num_current++;
+  s << MOV << RAX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
+  result_shift=rbp_top;   
 }
 
 void Ge_class::code(ostream &s) {
- 
+  e1->code(s);
+  e2->code(s);
+  emit_sub("$8",RSP,s);
+  rbp_top -= 8;
+  if(e1->getType()==Int && e2->getType()==Int)
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
+  emit_cmp(RDX, RAX, s);
+  }
+  else if(e1->getType()==Float && e2->getType()==Int)
+  {
+   s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+   s << CVTSI2SDQ <<RAX <<COMMA << XMM0 <<endl;
+   s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+   emit_ucompisd(XMM0,XMM1,s);
+  }
+  else if(e1->getType()==Int && e2->getType()==Float)
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
+  s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+  emit_ucompisd(XMM1,XMM0,s);
+  }
+  else
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+  emit_ucompisd(XMM0,XMM1,s);
+  }
+  if(e1->getType()==Int && e2->getType()==Int)  s << JGE <<' '<< POSITION << position_num <<endl;
+  else  s << JAE <<' '<< POSITION << position_num <<endl;
+  position_num++;
+  emit_mov("$0",RAX,s);
+  s << JMP <<' '<< POSITION << position_num << endl;
+  position_num++;
+  s << POSITION << position_num_current<<':' << endl;
+  position_num_current++;
+  emit_mov("$1",RAX,s);
+  s << POSITION << position_num_current<<':' << endl;
+  position_num_current++;
+  s << MOV << RAX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
+  result_shift=rbp_top; 
 }
 
 void Gt_class::code(ostream &s) {
- 
+  e1->code(s);
+  e2->code(s);
+  emit_sub("$8",RSP,s);
+  rbp_top -= 8;
+  if(e1->getType()==Int && e2->getType()==Int)
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
+  emit_cmp(RDX, RAX, s);
+  }
+  else if(e1->getType()==Float && e2->getType()==Int)
+  {
+   s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+   s << CVTSI2SDQ <<RAX <<COMMA << XMM0 <<endl;
+   s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+   emit_ucompisd(XMM0,XMM1,s);
+  }
+  else if(e1->getType()==Int && e2->getType()==Float)
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
+  s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+  emit_ucompisd(XMM1,XMM0,s);
+  }
+  else
+  {
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+  emit_ucompisd(XMM0,XMM1,s);
+  }
+  if(e1->getType()==Int && e2->getType()==Int)  s << JG <<' '<< POSITION << position_num <<endl;
+  else  s << JA <<' '<< POSITION << position_num <<endl;
+  position_num++;
+  emit_mov("$0",RAX,s);
+  s << JMP <<' '<< POSITION << position_num << endl;
+  position_num++;
+  s << POSITION << position_num_current<<':' << endl;
+  position_num_current++;
+  emit_mov("$1",RAX,s);
+  s << POSITION << position_num_current<<':' << endl;
+  position_num_current++;
+  s << MOV << RAX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
+  result_shift=rbp_top; 
 }
 
 void And_class::code(ostream &s) {
- 
+  e1->code(s);
+  e2->code(s);
+  emit_sub("$8",RSP,s);
+  rbp_top -= 8;
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl; 
+  emit_and(RAX,RDX,s);
+  s << MOV << RDX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
+  result_shift=rbp_top;
 }
 
 void Or_class::code(ostream &s) {
- 
+  e1->code(s);
+  e2->code(s);
+  emit_sub("$8",RSP,s);
+  rbp_top -= 8;
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl; 
+  emit_or(RAX,RDX,s);
+  s << MOV << RDX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
+  result_shift=rbp_top; 
 }
 
 void Xor_class::code(ostream &s) {
- 
+  e1->code(s);
+  e2->code(s);
+  emit_sub("$8",RSP,s);
+  rbp_top -= 8;
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl; 
+  emit_xor(RAX,RDX,s);
+  s << MOV << RDX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
+  result_shift=rbp_top;  
 }
 
 void Not_class::code(ostream &s) {
- 
+  e1->code(s);
+  emit_sub("$8",RSP,s);
+  rbp_top -= 8;
+  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  emit_not(RAX,s);
+  s << MOV << RDX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
+  result_shift=rbp_top; 
 }
 
 void Bitnot_class::code(ostream &s) {
@@ -959,7 +1255,13 @@ void Const_float_class::code(ostream &s) {
 }
 
 void Const_bool_class::code(ostream &s) {
- 
+  rbp_top-=8;
+  emit_sub("$8", RSP,s);
+  s << MOV <<'$' << value <<COMMA <<RAX<<endl;
+  s << MOV << RAX << COMMA << rbp_top << '(' << RBP << ')'<< endl;
+
+  result_shift = rbp_top;
+  
 }
 
 void Object_class::code(ostream &s) {
