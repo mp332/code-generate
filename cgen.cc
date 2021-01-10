@@ -533,6 +533,11 @@ void CallDecl_class::code(ostream &s) {
   emit_push(R13,s);
   emit_push(R14,s);
   emit_push(R15,s);
+
+  for(int i=paras->first(); paras->more(i); i=paras->next(i))
+  {
+    // paras->nth(i)
+  }
   for(int i=getBody()->getVariableDecls()->first();getBody()->getVariableDecls()->more(i); i=getBody()->getVariableDecls()->next(i))  
   {
       getBody()->getVariableDecls()->nth(i)->code(s);
@@ -577,15 +582,83 @@ void VariableDecl_class::code(ostream &s) {
 }
 
 void IfStmt_class::code(ostream &s) {
- 
+  int if_position = position_num;
+  int if_position_current = position_num_current;
+  position_num+=2;
+  position_num_current+=2;
+  condition->code(s);
+
+  s << MOV <<  rbp_top << '(' << RBP << ')'<< COMMA << RAX <<endl;
+  s << TEST << RAX << COMMA << RAX <<endl;
+  s << JZ << ' ' << POSITION << if_position <<endl;
+  if_position++;
+
+  // then_expr
+  thenexpr->code(s);
+  s << JMP << ' ' << POSITION << if_position <<endl;
+  if_position++;
+
+  //else_expr
+  s << POSITION << if_position_current << ':' <<endl;
+  if_position_current++;
+  elseexpr->code(s);
+
+  //after if statement
+  s << POSITION << if_position_current << ':' <<endl;
+  if_position_current++;
+
 }
 
 void WhileStmt_class::code(ostream &s) {
- 
+  int start_position = position_num;
+  s << POSITION << start_position << ':'<<endl;
+  position_num_current++; position_num++;
+  int while_position = position_num;
+  position_num++;
+  position_num_current++;
+  
+  condition->code(s);
+
+  s << MOV <<  rbp_top << '(' << RBP << ')'<< COMMA << RAX <<endl;
+  s << TEST << RAX << COMMA << RAX <<endl;
+  s << JZ << ' ' << POSITION << while_position <<endl;
+  body->code(s);
+  s << JMP << ' ' << POSITION << start_position <<endl;
+
+  s << POSITION << while_position << ':' <<endl;
 }
 
 void ForStmt_class::code(ostream &s) {
+  initexpr->code(s);
+
+  // for circle start
+  int start_position = position_num;
+  s << POSITION << position_num << ':' << endl;
+  position_num++; position_num_current++;
+  int for_position = position_num;
+  int after_for_position = position_num+1;
+
+  // condition expr
+  position_num+=2;  position_num_current+=2;
+  condition->code(s);
  
+  // compare
+  s << MOV <<  rbp_top << '(' << RBP << ')'<< COMMA << RAX <<endl;
+  s << TEST << RAX << COMMA << RAX <<endl;
+  s << JZ << ' ' << POSITION << after_for_position <<endl;
+
+  // for body
+  body->code(s);
+
+  // loopact expr
+  s << POSITION << for_position << ':' <<endl;
+  loopact->code(s);
+  s << JMP << ' ' << POSITION << start_position <<endl;
+
+  // after for
+  s << POSITION << after_for_position << ':' <<endl;
+
+
 }
 
 void ReturnStmt_class::code(ostream &s) {

@@ -4,14 +4,11 @@
 */
 
 func main() Void{
+    var i Int;
     var a Int;
-    var b Float;
-    var f Bool;
-    f=1>=1.1;
-    f=1.1>=1;
-    f=1.1>=1.1;
-    f=1>=1;
-
+    for i = 1;i < 15; i = i + 1 {
+        a=1;
+    }
     return;
 }
 
