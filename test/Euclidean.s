@@ -108,24 +108,24 @@ main:
 	subq	$8, %rsp
 	subq	$8, %rsp
 	movq	$23398, %rax
-	movq	%rax, -24(%rbp)
-	movq	-24(%rbp), %rax
-	movq	%rax, -8(%rbp)
+	movq	%rax, -80(%rbp)
+	movq	-80(%rbp), %rax
+	movq	%rax, -64(%rbp)
 	subq	$8, %rsp
 	movq	$14567, %rax
-	movq	%rax, -32(%rbp)
-	movq	-32(%rbp), %rax
-	movq	%rax, -16(%rbp)
+	movq	%rax, -88(%rbp)
+	movq	-88(%rbp), %rax
+	movq	%rax, -72(%rbp)
 	subq	$8, %rsp
 	movq	$.LC0, %rax
-	movq	%rax, -40(%rbp)
-	movq	-8(%rbp), %rdi
-	movq	-16(%rbp), %rsi
+	movq	%rax, -96(%rbp)
+	movq	-64(%rbp), %rdi
+	movq	-72(%rbp), %rsi
 	call	 euclidean
 	subq	$8, %rsp
-	movq	%rax, -48(%rbp)
-	movq	-40(%rbp), %rdi
-	movq	-48(%rbp), %rsi
+	movq	%rax, -104(%rbp)
+	movq	-96(%rbp), %rdi
+	movq	-104(%rbp), %rsi
 	subq	$8, %rsp
 	movl	$0, %eax
 	call	 printf

@@ -3,27 +3,11 @@
     the original file may not consist of all the syntax
 */
 
-func tan(x1 Float, y1 Float, x2 Float, y2 Float) Float {
-    if x1 == x2 {
-        return 0.0;
-    } 
-
-    return (y2 - y1) / (x2 - x1);
-}
-
-
+var a Bool;
+var b Int;
 // ok main
 func main() Void{
-    var x1 Float;
-    var x2 Float;
-    var y1 Float;
-    var y2 Float;
-    x1 = 3.5;
-    y1 = 3.5;
-    x2 = 5.5;
-    y2 = 4.5;
-    printf("tan = %f\n", tan(x1, y1, x2 ,y2));
-
+    a=a||true;
     return;
 }
 

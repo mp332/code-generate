@@ -446,10 +446,10 @@ int e1_shift = 0; //算数表达式里第一个操作数的偏移量
 int e2_shift = 0;
 int position_num = 0; //POS的标识
 int position_num_current =0; //已经定义的POS
+Symbol globalVar;
 SymbolTable<char *,int> *var_shift = new SymbolTable<char *, int>();
 SymbolTable<char *,int> *global_var = new SymbolTable<char *, int>();
 int global_var_num=0;
-// bool is_global = false; //判断是否为全局变量
 // SymbolTable<int ,int> *int_shift = new SymbolTable<int, int>();
 
 void code_global_data(Decls decls, ostream &str)
@@ -494,14 +494,24 @@ void code(Decls decls, ostream& s)
   {
     if(!decls->nth(i)->isCallDecl())
     {
+      if(!have_global_var) s << DATA<<endl;
       have_global_var=true;
-      s << DATA<<endl;
       s << GLOBAL << decls->nth(i)->getName()->get_string()<<endl;
       s << ALIGN << 8 << endl;
       s << SYMBOL_TYPE << decls->nth(i)->getName()->get_string() << COMMA << OBJECT<<endl;
       s << SIZE << decls->nth(i)->getName()->get_string()<< COMMA << 8 <<endl;
       s << decls->nth(i)->getName()->get_string()<<':'<<endl;
-      s << INTTAG << 0 <<endl;
+      if(decls->nth(i)->getType()==Int) s << INTTAG << 0 <<endl;
+      else if(decls->nth(i)->getType()==Bool)
+      {
+        s << FLOATTAG << 0<<endl;
+      }
+      else
+      {
+        s << FLOATTAG << 0<<endl;
+        s << FLOATTAG << 0<<endl;
+      }
+      
       int* shift=new int(global_var_num++);
       global_var->addid(decls->nth(i)->getName()->get_string(),shift);      
     }
@@ -548,7 +558,7 @@ void CallDecl_class::code(ostream &s) {
   emit_push(R14,s);
   emit_push(R15,s);
 
-  if(name==Main)  rbp_top+=56;
+  // if(name==Main)  rbp_top+=56;
   int paras_num=0;
   for(int i=paras->first(); paras->more(i); i=paras->next(i))
   {
@@ -717,19 +727,20 @@ void ForStmt_class::code(ostream &s) {
 void ReturnStmt_class::code(ostream &s) {
   if(!value->is_empty_Expr())
   {
-    // if(value->get_is_global())
-    // {
-    //   s << MOV; value->code(s); s << '(' << RIP << ')'<< COMMA << RAX <<endl;
-    // }
-    // else
-    // {
-    //   value->code(s);
-    //   if(value->getType()==Int) s << MOV <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << RAX <<endl;
-    //   else s << MOVAPS <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << XMM0 <<endl;      
-    // }
-    value->code(s);
-    if(value->getType()==Int) s << MOV <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << RAX <<endl;
-    else s << MOVAPS <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << XMM0 <<endl;      
+    if(value->get_is_global())
+    {
+      value->code(s);
+      s << MOV<< globalVar->get_string() << '(' << RIP << ')'<< COMMA << RAX <<endl;
+    }
+    else
+    {
+      value->code(s);
+      if(value->getType()==Int) s << MOV <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << RAX <<endl;
+      else s << MOVAPS <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << XMM0 <<endl;      
+    }
+    // value->code(s);
+    // if(value->getType()==Int) s << MOV <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << RAX <<endl;
+    // else s << MOVAPS <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << XMM0 <<endl;      
 
   }
   emit_pop(R15,s);
@@ -839,19 +850,18 @@ void Actual_class::code(ostream &s) {
 }
 
 void Assign_class::code(ostream &s) {
-  // if(value->get_is_global())
-  // {
-  //   s << MOV; value->code(s); s << '(' << RIP << ')'<< COMMA << RAX <<endl;
-  // }
-  // else
-  // {
-  //   value->code(s);
-  //   if(value->getType()==Int) s << MOV <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << RAX <<endl;
-  //   else s << MOVAPS <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << XMM0 <<endl;      
-  // }
-  
   value->code(s);
-  s << MOV <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << RAX <<endl;
+  if(value->get_is_global())
+  {
+    s << MOV << globalVar->get_string() << '(' << RIP << ')'<< COMMA << RAX <<endl;
+  }
+  else
+  {
+    s << MOV <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << RAX <<endl;
+  }
+  
+  // value->code(s);
+  // s << MOV <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << RAX <<endl;
   int lvalue_shift=0;
   if(var_shift->lookup(lvalue->get_string()))
   {
@@ -862,13 +872,10 @@ void Assign_class::code(ostream &s) {
   {
     s << MOV << RAX << COMMA << lvalue->get_string() << '(' << RIP << ')'<<endl;
   }
-  
-
-
-
 }
 
 void Add_class::code(ostream &s) {
+  
   e1->code(s);
   e2->code(s);
 
@@ -877,32 +884,40 @@ void Add_class::code(ostream &s) {
 
   if(e1->getType()==Int && e2->getType()==Int)
   {
-    s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
-    s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << R10 << endl;
+    if(!e1->get_is_global())  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RBX << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << R10 << endl;
+    else  s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << R10 << endl;
     emit_add(RBX, R10, s);
     s << MOV << R10 << COMMA << rbp_top << '(' << RBP << ')' <<endl;
   }
   else if(e1->getType()==Float && e2->getType()==Float)
   {
-    s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 << endl;
-    s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM5 << endl;
+    if(!e1->get_is_global()) s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 << endl;
+    else  s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM4 << endl;
+    if(!e2->get_is_global()) s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM5 << endl;
+    else  s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM5 << endl;
     emit_addsd(XMM4,XMM5,s);
     s << MOVSD << XMM5 << COMMA << rbp_top << '(' << RBP << ')' <<endl;
   }
   else if(e1->getType()==Int && e2->getType()==Float)
   {
-    s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    if(!e1->get_is_global())  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    else  s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RBX << endl;
     s << CVTSI2SDQ << RBX << COMMA << XMM4 << endl; //cvtsi2sdq	%rbx, %xmm4
-    s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM5 << endl;
+    if(!e2->get_is_global())  s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM5 << endl;
+    else  s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM5 << endl;
     emit_addsd(XMM4,XMM5,s);
     s << MOVSD << XMM5 << COMMA << rbp_top << '(' << RBP << ')' <<endl;
 
   }
   else  //(e1->getType()==Float && e2->getType()==Int)
   {
-    s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    else  s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RBX << endl;
     s << CVTSI2SDQ << RBX << COMMA << XMM5 << endl; //cvtsi2sdq	%rbx, %xmm4
-    s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 << endl;
+    if(!e1->get_is_global())  s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 << endl;
+    else  s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM4 << endl;
 
     emit_addsd(XMM4,XMM5,s);
     s << MOVSD << XMM5 << COMMA << rbp_top << '(' << RBP << ')' <<endl;
@@ -920,32 +935,40 @@ void Minus_class::code(ostream &s) {
   
   if(e1->getType()==Int && e2->getType()==Int)
   {
-    s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
-    s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << R10 << endl;
-    emit_sub(R10,RBX,s);
+    if(!e1->get_is_global())  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RBX << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << R10 << endl;
+    else  s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << R10 << endl;
+    emit_sub(R10, RBX, s);
     s << MOV << RBX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
   }
   else if(e1->getType()==Float && e2->getType()==Float)
   {
-    s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 << endl;
-    s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM5 << endl;
+    if(!e1->get_is_global()) s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 << endl;
+    else  s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM4 << endl;
+    if(!e2->get_is_global()) s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM5 << endl;
+    else  s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM5 << endl;
     emit_subsd(XMM5,XMM4,s);
     s << MOVSD << XMM4 << COMMA << rbp_top << '(' << RBP << ')' <<endl;
   }
   else if(e1->getType()==Int && e2->getType()==Float)
   {
-    s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    if(!e1->get_is_global())  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    else  s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RBX << endl;
     s << CVTSI2SDQ << RBX << COMMA << XMM4 << endl; //cvtsi2sdq	%rbx, %xmm4
-    s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM5 << endl;
+    if(!e2->get_is_global())  s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM5 << endl;
+    else  s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM5 << endl;
     emit_subsd(XMM5,XMM4,s);
     s << MOVSD << XMM4 << COMMA << rbp_top << '(' << RBP << ')' <<endl;
 
   }
   else  //(e1->getType()==Float && e2->getType()==Int)
   {
-    s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    else  s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RBX << endl;
     s << CVTSI2SDQ << RBX << COMMA << XMM5 << endl; //cvtsi2sdq	%rbx, %xmm4
-    s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 << endl;
+    if(!e1->get_is_global())  s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 << endl;
+    else  s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM4 << endl;
 
     emit_subsd(XMM5,XMM4,s);
     s << MOVSD << XMM4 << COMMA << rbp_top << '(' << RBP << ')' <<endl;
@@ -963,32 +986,40 @@ void Multi_class::code(ostream &s) {
   
   if(e1->getType()==Int && e2->getType()==Int)
   {
-    s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
-    s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << R10 << endl;
-    emit_mul(R10,RBX,s);
+    if(!e1->get_is_global())  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RBX << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << R10 << endl;
+    else  s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << R10 << endl;
+    emit_mul(R10, RBX, s);
     s << MOV << RBX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
   }
   else if(e1->getType()==Float && e2->getType()==Float)
   {
-    s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 << endl;
-    s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM5 << endl;
+    if(!e1->get_is_global()) s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 << endl;
+    else  s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM4 << endl;
+    if(!e2->get_is_global()) s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM5 << endl;
+    else  s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM5 << endl;
     emit_mulsd(XMM5,XMM4,s);
     s << MOVSD << XMM4 << COMMA << rbp_top << '(' << RBP << ')' <<endl;
   }
   else if(e1->getType()==Int && e2->getType()==Float)
   {
-    s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    if(!e1->get_is_global())  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    else  s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RBX << endl;
     s << CVTSI2SDQ << RBX << COMMA << XMM4 << endl; //cvtsi2sdq	%rbx, %xmm4
-    s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM5 << endl;
+    if(!e2->get_is_global())  s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM5 << endl;
+    else  s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM5 << endl;
     emit_mulsd(XMM5,XMM4,s);
     s << MOVSD << XMM4 << COMMA << rbp_top << '(' << RBP << ')' <<endl;
 
   }
   else  //(e1->getType()==Float && e2->getType()==Int)
   {
-    s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    else  s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RBX << endl;
     s << CVTSI2SDQ << RBX << COMMA << XMM5 << endl; //cvtsi2sdq	%rbx, %xmm4
-    s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 << endl;
+    if(!e1->get_is_global())  s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 << endl;
+    else  s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM4 << endl;
 
     emit_mulsd(XMM5,XMM4,s);
     s << MOVSD << XMM4 << COMMA << rbp_top << '(' << RBP << ')' <<endl;
@@ -1006,33 +1037,42 @@ void Divide_class::code(ostream &s) {
   
   if(e1->getType()==Int && e2->getType()==Int)
   {
-    s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+    if(!e1->get_is_global())  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
     emit_cqto(s);
-    s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    
+    if(!e1->get_is_global())  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
     emit_div(RBX,s);
     s << MOV << RAX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
   }
   else if(e1->getType()==Float && e2->getType()==Float)
   {
-    s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 << endl;
-    s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM5 << endl;
+    if(!e1->get_is_global())  s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 << endl;
+    else s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM4 << endl;
+    if(!e2->get_is_global()) s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM5 << endl;
+    else s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM5 << endl;
     emit_divsd(XMM5,XMM4,s);
     s << MOVSD << XMM4 << COMMA << rbp_top << '(' << RBP << ')' <<endl;
   }
   else if(e1->getType()==Int && e2->getType()==Float)
   {
-    s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RBX << endl;
     s << CVTSI2SDQ << RBX << COMMA << XMM4 << endl; //cvtsi2sdq	%rbx, %xmm4
-    s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM5 << endl;
+    if(!e2->get_is_global()) s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM5 << endl;
+    else s << MOVSD << e2->get_result_shift() << '(' << RIP << ')' << COMMA << XMM5 << endl;
     emit_divsd(XMM5,XMM4,s);
     s << MOVSD << XMM4 << COMMA << rbp_top << '(' << RBP << ')' <<endl;
 
   }
   else  //(e1->getType()==Float && e2->getType()==Int)
   {
-    s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RBX << endl;
     s << CVTSI2SDQ << RBX << COMMA << XMM5 << endl; //cvtsi2sdq	%rbx, %xmm4
-    s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 << endl;
+    if(!e1->get_is_global()) s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 << endl;
+    else s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM4 << endl;
 
     emit_divsd(XMM5,XMM4,s);
     s << MOVSD << XMM4 << COMMA << rbp_top << '(' << RBP << ')' <<endl;
@@ -1047,9 +1087,11 @@ void Mod_class::code(ostream &s) {
 
   rbp_top -= 8;
   emit_sub("$8",RSP,s);
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  if(!e1->get_is_global())  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
   emit_cqto(s);
-  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+  if(!e2->get_is_global())  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RBX << endl;
+  else  s << MOV << globalVar << '(' << RIP << ')' << COMMA << RBX << endl;
   emit_div(RBX,s);
   s << MOV << RDX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
   result_shift=rbp_top; 
@@ -1063,7 +1105,8 @@ void Neg_class::code(ostream &s) {
  emit_sub("$8",RSP,s);
  if(e1->getType()==Int)
  {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  if(!e1->get_is_global())  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  else s << MOV << globalVar->get_string() << '(' << RBP << ')' << COMMA << RAX << endl;
   emit_neg(RAX,s);
   s << MOV << RAX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
  }
@@ -1071,7 +1114,8 @@ void Neg_class::code(ostream &s) {
  {
   emit_sub("$8",RSP,s);
   emit_mov("$0x8000000000000000",RAX,s);
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
+  if(!e1->get_is_global())  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
+  else s << MOV << globalVar->get_string() << '(' << RBP << ')' << COMMA << RDX << endl;
   emit_xor(RAX,RDX,s);
   s << MOV << RDX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
   rbp_top -= 8;
@@ -1087,29 +1131,37 @@ void Lt_class::code(ostream &s) {
   rbp_top -= 8;
   if(e1->getType()==Int && e2->getType()==Int)
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
-  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
-  emit_cmp(RDX, RAX, s);
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RDX << endl;
+    emit_cmp(RDX, RAX, s);
   }
   else if(e1->getType()==Float && e2->getType()==Int)
   {
-   s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
-   s << CVTSI2SDQ <<RAX <<COMMA << XMM0 <<endl;
-   s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
-   emit_ucompisd(XMM0,XMM1,s);
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
+    s << CVTSI2SDQ <<RAX <<COMMA << XMM0 <<endl;
+    if(!e1->get_is_global()) s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+    else s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
+    emit_ucompisd(XMM0,XMM1,s);
   }
   else if(e1->getType()==Int && e2->getType()==Float)
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
-  s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
-  s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
-  emit_ucompisd(XMM1,XMM0,s);
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
+    s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
+    if(!e2->get_is_global()) s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+    else s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
+    emit_ucompisd(XMM1,XMM0,s);
   }
   else
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
-  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
-  emit_ucompisd(XMM0,XMM1,s);
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+    else s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+    emit_ucompisd(XMM0,XMM1,s);
   }
   if(e1->getType()==Int && e2->getType()==Int)  s << JL <<' '<< POSITION << position_num <<endl;
   else  s << JB <<' '<< POSITION << position_num <<endl;
@@ -1133,29 +1185,37 @@ void Le_class::code(ostream &s) {
   rbp_top -= 8;
   if(e1->getType()==Int && e2->getType()==Int)
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
-  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
-  emit_cmp(RDX, RAX, s);
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RDX << endl;
+    emit_cmp(RDX, RAX, s);
   }
   else if(e1->getType()==Float && e2->getType()==Int)
   {
-   s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+   if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+   else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
    s << CVTSI2SDQ <<RAX <<COMMA << XMM0 <<endl;
-   s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+   if(!e1->get_is_global()) s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+   else s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
    emit_ucompisd(XMM0,XMM1,s);
   }
   else if(e1->getType()==Int && e2->getType()==Float)
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
-  s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
-  s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
-  emit_ucompisd(XMM1,XMM0,s);
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
+    s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
+    if(!e2->get_is_global()) s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+    else s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
+    emit_ucompisd(XMM1,XMM0,s);
   }
   else
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
-  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
-  emit_ucompisd(XMM0,XMM1,s);
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+    else s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+    emit_ucompisd(XMM0,XMM1,s);
   }
   if(e1->getType()==Int && e2->getType()==Int)  s << JLE <<' '<< POSITION << position_num <<endl;
   else  s << JBE <<' '<< POSITION << position_num <<endl;
@@ -1179,29 +1239,37 @@ void Equ_class::code(ostream &s) {
   rbp_top -= 8;
   if(e1->getType()==Int && e2->getType()==Int)
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
-  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
-  emit_cmp(RDX, RAX, s);
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RDX << endl;
+    emit_cmp(RDX, RAX, s);
   }
   else if(e1->getType()==Float && e2->getType()==Int)
   {
-   s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+   if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+   else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
    s << CVTSI2SDQ <<RAX <<COMMA << XMM0 <<endl;
-   s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+   if(!e1->get_is_global()) s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+   else s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
    emit_ucompisd(XMM0,XMM1,s);
   }
   else if(e1->getType()==Int && e2->getType()==Float)
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
-  s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
-  s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
-  emit_ucompisd(XMM1,XMM0,s);
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
+    s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
+    if(!e2->get_is_global()) s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+    else s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
+    emit_ucompisd(XMM1,XMM0,s);
   }
   else
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
-  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
-  emit_ucompisd(XMM0,XMM1,s);
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+    else s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+    emit_ucompisd(XMM0,XMM1,s);
   }
   s << JE <<' '<< POSITION << position_num <<endl;
   position_num++;
@@ -1225,29 +1293,37 @@ void Neq_class::code(ostream &s) {
 
   if(e1->getType()==Int && e2->getType()==Int)
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
-  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
+  if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
+  if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
+  else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RDX << endl;
   emit_cmp(RDX, RAX, s);
   }
   else if(e1->getType()==Float && e2->getType()==Int)
   {
-   s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
-   s << CVTSI2SDQ <<RAX <<COMMA << XMM0 <<endl;
-   s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
-   emit_ucompisd(XMM0,XMM1,s);
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
+    s << CVTSI2SDQ <<RAX <<COMMA << XMM0 <<endl;
+    if(!e1->get_is_global()) s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+    else s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
+    emit_ucompisd(XMM0,XMM1,s);
   }
   else if(e1->getType()==Int && e2->getType()==Float)
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
-  s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
-  s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
-  emit_ucompisd(XMM1,XMM0,s);
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
+    s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
+    if(!e2->get_is_global()) s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+    else s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
+    emit_ucompisd(XMM1,XMM0,s);
   }
   else
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
-  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
-  emit_ucompisd(XMM0,XMM1,s);
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+    else s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+    emit_ucompisd(XMM0,XMM1,s);
   }
   
 
@@ -1272,29 +1348,37 @@ void Ge_class::code(ostream &s) {
   rbp_top -= 8;
   if(e1->getType()==Int && e2->getType()==Int)
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
-  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
-  emit_cmp(RDX, RAX, s);
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RDX << endl;
+    emit_cmp(RDX, RAX, s);
   }
   else if(e1->getType()==Float && e2->getType()==Int)
   {
-   s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+   if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+   else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
    s << CVTSI2SDQ <<RAX <<COMMA << XMM0 <<endl;
-   s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+   if(!e1->get_is_global()) s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+   else s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
    emit_ucompisd(XMM0,XMM1,s);
   }
   else if(e1->getType()==Int && e2->getType()==Float)
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
-  s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
-  s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
-  emit_ucompisd(XMM1,XMM0,s);
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
+    s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
+    if(!e2->get_is_global()) s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+    else s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
+    emit_ucompisd(XMM1,XMM0,s);
   }
   else
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
-  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
-  emit_ucompisd(XMM0,XMM1,s);
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+    else s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+    emit_ucompisd(XMM0,XMM1,s);
   }
   if(e1->getType()==Int && e2->getType()==Int)  s << JGE <<' '<< POSITION << position_num <<endl;
   else  s << JAE <<' '<< POSITION << position_num <<endl;
@@ -1318,29 +1402,37 @@ void Gt_class::code(ostream &s) {
   rbp_top -= 8;
   if(e1->getType()==Int && e2->getType()==Int)
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
-  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
-  emit_cmp(RDX, RAX, s);
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RDX << endl;
+    emit_cmp(RDX, RAX, s);
   }
   else if(e1->getType()==Float && e2->getType()==Int)
   {
-   s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+   if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+   else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
    s << CVTSI2SDQ <<RAX <<COMMA << XMM0 <<endl;
-   s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+   if(!e1->get_is_global()) s << MOVSD << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+   else s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
    emit_ucompisd(XMM0,XMM1,s);
   }
   else if(e1->getType()==Int && e2->getType()==Float)
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
-  s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
-  s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
-  emit_ucompisd(XMM1,XMM0,s);
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
+    s << CVTSI2SDQ <<RAX << COMMA << XMM0 << endl;
+    if(!e2->get_is_global()) s << MOVSD << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+    else s << MOVSD << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
+    emit_ucompisd(XMM1,XMM0,s);
   }
   else
   {
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
-  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
-  emit_ucompisd(XMM0,XMM1,s);
+    if(!e1->get_is_global()) s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 << endl;
+    else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << XMM1 << endl;
+    if(!e2->get_is_global()) s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+    else s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 << endl;
+    emit_ucompisd(XMM0,XMM1,s);
   }
   if(e1->getType()==Int && e2->getType()==Int)  s << JG <<' '<< POSITION << position_num <<endl;
   else  s << JA <<' '<< POSITION << position_num <<endl;
@@ -1362,8 +1454,10 @@ void And_class::code(ostream &s) {
   e2->code(s);
   emit_sub("$8",RSP,s);
   rbp_top -= 8;
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
-  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl; 
+  if(!e1->get_is_global())  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  else  s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
+  if(!e2->get_is_global())  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl; 
+  else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RDX << endl; 
   emit_and(RAX,RDX,s);
   s << MOV << RDX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
   result_shift=rbp_top;
@@ -1374,8 +1468,10 @@ void Or_class::code(ostream &s) {
   e2->code(s);
   emit_sub("$8",RSP,s);
   rbp_top -= 8;
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
-  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl; 
+  if(!e1->get_is_global())  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  else  s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
+  if(!e2->get_is_global())  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl; 
+  else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RDX << endl; 
   emit_or(RAX,RDX,s);
   s << MOV << RDX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
   result_shift=rbp_top; 
@@ -1386,8 +1482,10 @@ void Xor_class::code(ostream &s) {
   e2->code(s);
   emit_sub("$8",RSP,s);
   rbp_top -= 8;
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
-  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl; 
+  if(!e1->get_is_global())  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  else  s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
+  if(!e2->get_is_global())  s << MOV << e2->get_result_shift() << '(' << RBP << ')' << COMMA << RDX << endl; 
+  else s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RDX << endl; 
   emit_xor(RAX,RDX,s);
   s << MOV << RDX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
   result_shift=rbp_top;  
@@ -1397,7 +1495,8 @@ void Not_class::code(ostream &s) {
   e1->code(s);
   emit_sub("$8",RSP,s);
   rbp_top -= 8;
-  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  if(!e1->get_is_global())  s << MOV << e1->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  else  s << MOV << globalVar->get_string() << '(' << RIP << ')' << COMMA << RAX << endl;
   emit_not(RAX,s);
   s << MOV << RDX << COMMA << rbp_top << '(' << RBP << ')' <<endl;
   result_shift=rbp_top; 
@@ -1465,8 +1564,8 @@ void Object_class::code(ostream &s) {
  // 输出变量对应的偏移量，如-96(%rbp)
  if(!var_shift->lookup(var->get_string()))
  {
-  //  is_global=true;
-   s << var->get_string(); //输出全局变量
+   is_global_variable=true;
+   globalVar=var;
  }
  else result_shift=*(var_shift->lookup(var->get_string())); 
 }

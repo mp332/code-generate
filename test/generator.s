@@ -97,16 +97,16 @@ main:
 	subq	$8, %rsp
 	subq	$8, %rsp
 	movq	$1, %rax
-	movq	%rax, -16(%rbp)
-	movq	-16(%rbp), %rax
-	movq	%rax, -8(%rbp)
+	movq	%rax, -72(%rbp)
+	movq	-72(%rbp), %rax
+	movq	%rax, -64(%rbp)
 .POS4:
 	subq	$8, %rsp
 	movq	$23, %rax
-	movq	%rax, -24(%rbp)
+	movq	%rax, -80(%rbp)
 	subq	$8, %rsp
-	movq	-8(%rbp), %rax
-	movq	-24(%rbp), %rdx
+	movq	-64(%rbp), %rax
+	movq	-80(%rbp), %rdx
 	cmpq	%rdx, %rax
 	jl	 .POS7
 	movq	$0, %rax
@@ -114,38 +114,38 @@ main:
 .POS7:
 	movq	$1, %rax
 .POS8:
-	movq	%rax, -32(%rbp)
-	movq	-32(%rbp), %rax
+	movq	%rax, -88(%rbp)
+	movq	-88(%rbp), %rax
 	testq	%rax, %rax
 	jz	 .POS6
 	subq	$8, %rsp
 	movq	$.LC0, %rax
-	movq	%rax, -40(%rbp)
-	movq	-8(%rbp), %rdi
+	movq	%rax, -96(%rbp)
+	movq	-64(%rbp), %rdi
 	subq	$8, %rsp
 	movq	$23, %rax
-	movq	%rax, -48(%rbp)
-	movq	-48(%rbp), %rsi
+	movq	%rax, -104(%rbp)
+	movq	-104(%rbp), %rsi
 	call	 ind
 	subq	$8, %rsp
-	movq	%rax, -56(%rbp)
-	movq	-40(%rbp), %rdi
-	movq	-8(%rbp), %rsi
-	movq	-56(%rbp), %rdx
+	movq	%rax, -112(%rbp)
+	movq	-96(%rbp), %rdi
+	movq	-64(%rbp), %rsi
+	movq	-112(%rbp), %rdx
 	subq	$8, %rsp
 	movl	$0, %eax
 	call	 printf
 .POS5:
 	subq	$8, %rsp
 	movq	$1, %rax
-	movq	%rax, -72(%rbp)
+	movq	%rax, -128(%rbp)
 	subq	$8, %rsp
-	movq	-8(%rbp), %rbx
-	movq	-72(%rbp), %r10
+	movq	-64(%rbp), %rbx
+	movq	-128(%rbp), %r10
 	addq	%rbx, %r10
-	movq	%r10, -80(%rbp)
-	movq	-80(%rbp), %rax
-	movq	%rax, -8(%rbp)
+	movq	%r10, -136(%rbp)
+	movq	-136(%rbp), %rax
+	movq	%rax, -64(%rbp)
 	jmp	 .POS4
 .POS6:
 	popq	 %r15

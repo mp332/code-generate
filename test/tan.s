@@ -97,36 +97,36 @@ main:
 	subq	$8, %rsp
 	subq	$8, %rsp
 	movq	$4615063718147915776, %rax
-	movq	%rax, -40(%rbp)
-	movq	-40(%rbp), %rax
-	movq	%rax, -8(%rbp)
+	movq	%rax, -96(%rbp)
+	movq	-96(%rbp), %rax
+	movq	%rax, -64(%rbp)
 	subq	$8, %rsp
 	movq	$4615063718147915776, %rax
-	movq	%rax, -48(%rbp)
-	movq	-48(%rbp), %rax
-	movq	%rax, -24(%rbp)
+	movq	%rax, -104(%rbp)
+	movq	-104(%rbp), %rax
+	movq	%rax, -80(%rbp)
 	subq	$8, %rsp
 	movq	$4617878467915022336, %rax
-	movq	%rax, -56(%rbp)
-	movq	-56(%rbp), %rax
-	movq	%rax, -16(%rbp)
+	movq	%rax, -112(%rbp)
+	movq	-112(%rbp), %rax
+	movq	%rax, -72(%rbp)
 	subq	$8, %rsp
 	movq	$4616752568008179712, %rax
-	movq	%rax, -64(%rbp)
-	movq	-64(%rbp), %rax
-	movq	%rax, -32(%rbp)
+	movq	%rax, -120(%rbp)
+	movq	-120(%rbp), %rax
+	movq	%rax, -88(%rbp)
 	subq	$8, %rsp
 	movq	$.LC0, %rax
-	movq	%rax, -72(%rbp)
-	movsd	-8(%rbp), %xmm0
-	movsd	-24(%rbp), %xmm1
-	movsd	-16(%rbp), %xmm2
-	movsd	-32(%rbp), %xmm3
+	movq	%rax, -128(%rbp)
+	movsd	-64(%rbp), %xmm0
+	movsd	-80(%rbp), %xmm1
+	movsd	-72(%rbp), %xmm2
+	movsd	-88(%rbp), %xmm3
 	call	 tan
 	subq	$8, %rsp
-	movsd	%xmm0, -80(%rbp)
-	movq	-72(%rbp), %rdi
-	movsd	-80(%rbp), %xmm0
+	movsd	%xmm0, -136(%rbp)
+	movq	-128(%rbp), %rdi
+	movsd	-136(%rbp), %xmm0
 	subq	$8, %rsp
 	movl	$1, %eax
 	call	 printf

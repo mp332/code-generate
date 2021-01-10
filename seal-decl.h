@@ -18,6 +18,7 @@ public:
     virtual Symbol getType() = 0;
     virtual void check() = 0;
     virtual void code(ostream&) = 0;
+    virtual void installTable() =0;
 };
 
 
@@ -53,6 +54,7 @@ public:
    void dump(ostream& stream, int n);
    void dump_with_types(ostream&,int);
    bool isCallDecl(){return false;}
+   void installTable();
    void check();
    void code(ostream&);
 };
@@ -81,6 +83,7 @@ public:
    void dump(ostream& stream, int n);
    void dump_with_types(ostream&,int);  
    bool isCallDecl(){return true;}
+   void installTable();
    void check();
    void code(ostream&);
 };
