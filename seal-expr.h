@@ -15,20 +15,23 @@ typedef class Call_class *Call;
 
 class Expr_class : public Stmt_class {
 protected:
-   int result_shift; 
+   int result_shift;
+   // bool is_global_variable; 
 public:     
    Symbol type; 
    Stmt copy_Stmt() { return copy_Expr(); }   
    Symbol getType() { return type; }           
    Expr setType(Symbol s) { type = s; return this; }           
-   Expr_class() { type = (Symbol) NULL;result_shift=0;  }
+   Expr_class() { type = (Symbol) NULL;result_shift=0;}
    Expr_class(Symbol a1) {
-        type = a1;
+      type = a1;
       result_shift=0;
+      // is_global_variable=false;
    }
    void check(Symbol s) {checkType();}
    void dump_type(ostream&, int);
    int get_result_shift()  {return result_shift;}
+   // bool get_is_global() {return is_global_variable;}
    void set_result_shift(int shift) {result_shift=shift;}
    
    virtual void dump_with_types(ostream&,int) = 0; 

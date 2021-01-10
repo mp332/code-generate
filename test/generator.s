@@ -121,10 +121,10 @@ main:
 	subq	$8, %rsp
 	movq	$.LC0, %rax
 	movq	%rax, -40(%rbp)
+	movq	-8(%rbp), %rdi
 	subq	$8, %rsp
 	movq	$23, %rax
 	movq	%rax, -48(%rbp)
-	movq	-8(%rbp), %rdi
 	movq	-48(%rbp), %rsi
 	call	 ind
 	subq	$8, %rsp

@@ -439,7 +439,6 @@ static void emit_global_bool(Symbol name, ostream& s) {
 }
 
 // StrTable str_table;
-int float_num=0; //计数printf里的浮点数个数
 int rbp_top = -56;  //当前栈指针的位置
 bool is_float_calulate=0; //区别浮点数运算和整数运算
 bool is_e1 = true; //算数表达式里的第一个操作数
@@ -448,6 +447,9 @@ int e2_shift = 0;
 int position_num = 0; //POS的标识
 int position_num_current =0; //已经定义的POS
 SymbolTable<char *,int> *var_shift = new SymbolTable<char *, int>();
+SymbolTable<char *,int> *global_var = new SymbolTable<char *, int>();
+int global_var_num=0;
+// bool is_global = false; //判断是否为全局变量
 // SymbolTable<int ,int> *int_shift = new SymbolTable<int, int>();
 
 void code_global_data(Decls decls, ostream &str)
@@ -485,17 +487,29 @@ void cgen_helper(Decls decls, ostream& s)
 void code(Decls decls, ostream& s)
 {
   if (cgen_debug) cout << "Coding global data" << endl;
-  s << SECTION << RODATA << endl; // 是否始终只有一个？
+  bool have_global_var=false;
   code_global_data(decls, s);
-  stringtable.code_string_table(s);
-  s<< TEXT<<endl;
+  global_var->enterscope();
   for(int i=decls->first();decls->more(i); i=decls->next(i))
   {
-    if(!(decls->nth(i)->isCallDecl()))
+    if(!decls->nth(i)->isCallDecl())
     {
-      decls->nth(i)->code(s);
+      have_global_var=true;
+      s << DATA<<endl;
+      s << GLOBAL << decls->nth(i)->getName()->get_string()<<endl;
+      s << ALIGN << 8 << endl;
+      s << SYMBOL_TYPE << decls->nth(i)->getName()->get_string() << COMMA << OBJECT<<endl;
+      s << SIZE << decls->nth(i)->getName()->get_string()<< COMMA << 8 <<endl;
+      s << decls->nth(i)->getName()->get_string()<<':'<<endl;
+      s << INTTAG << 0 <<endl;
+      int* shift=new int(global_var_num++);
+      global_var->addid(decls->nth(i)->getName()->get_string(),shift);      
     }
   }
+
+  s << SECTION << RODATA << endl; // 是否始终只有一个？
+  stringtable.code_string_table(s);
+  s<< TEXT<<endl;
 
   if (cgen_debug) cout << "Coding calls" << endl;
   code_calls(decls, s);
@@ -534,9 +548,56 @@ void CallDecl_class::code(ostream &s) {
   emit_push(R14,s);
   emit_push(R15,s);
 
+  if(name==Main)  rbp_top+=56;
+  int paras_num=0;
   for(int i=paras->first(); paras->more(i); i=paras->next(i))
   {
     // paras->nth(i)
+    paras_num++;
+    emit_sub("$8",RSP,s);
+    rbp_top -= 8;    
+    if(global_var->lookup(paras->nth(i)->getName()->get_string()))
+    {
+      switch (paras_num)
+      {
+      case 1: {if(paras->nth(i)->getType()==Int)  {s << MOV << RDI << COMMA <<  paras->nth(i)->getName()->get_string() << '(' << RIP << ')'<<endl;break;}
+              else {s << MOV << XMM0 << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}}
+      case 2: {if(paras->nth(i)->getType()==Int)  {s << MOV << RSI << COMMA <<  paras->nth(i)->getName()->get_string() << '(' << RIP << ')'<<endl;break;}
+              else {s << MOV << XMM1 << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}}
+      case 3: {if(paras->nth(i)->getType()==Int)  {s << MOV << RDX << COMMA <<  paras->nth(i)->getName()->get_string() << '(' << RIP << ')'<<endl;break;}
+              else {s << MOV << XMM2 << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}}
+      case 4: {if(paras->nth(i)->getType()==Int)  {s << MOV << RCX << COMMA <<  paras->nth(i)->getName()->get_string() << '(' << RIP << ')'<<endl;break;}
+              else {s << MOV << XMM3 << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}}
+      case 5: {if(paras->nth(i)->getType()==Int)  {s << MOV << R8 << COMMA <<  paras->nth(i)->getName()->get_string() << '(' << RIP << ')'<<endl;break;}
+              else {s << MOV << XMM4 << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}}
+      case 6: {if(paras->nth(i)->getType()==Int)  {s << MOV << R9 << COMMA <<  paras->nth(i)->getName()->get_string() << '(' << RIP << ')'<<endl;break;}
+              else {s << MOV << XMM5 << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}}
+      default:  break;
+      }
+    }
+    else
+    {
+      switch (paras_num)
+      {
+      case 1: {if(paras->nth(i)->getType()==Int)  {s << MOV << RDI << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}
+              else {s << MOV << XMM0 << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}}
+      case 2: {if(paras->nth(i)->getType()==Int)  {s << MOV << RSI << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}
+              else {s << MOV << XMM1 << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}}
+      case 3: {if(paras->nth(i)->getType()==Int)  {s << MOV << RDX << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}
+              else {s << MOV << XMM2 << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}}
+      case 4: {if(paras->nth(i)->getType()==Int)  {s << MOV << RCX << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}
+              else {s << MOV << XMM3 << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}}
+      case 5: {if(paras->nth(i)->getType()==Int)  {s << MOV << R8 << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}
+              else {s << MOV << XMM4 << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}}
+      case 6: {if(paras->nth(i)->getType()==Int)  {s << MOV << R9 << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}
+              else {s << MOV << XMM5 << COMMA <<  rbp_top << '(' << RBP << ')'<<endl;break;}}
+      default:  break;      
+      }
+    }
+
+    int* shift=new int(rbp_top);
+    var_shift->addid(paras->nth(i)->getName()->get_string(),shift);
+    
   }
   for(int i=getBody()->getVariableDecls()->first();getBody()->getVariableDecls()->more(i); i=getBody()->getVariableDecls()->next(i))  
   {
@@ -547,15 +608,7 @@ void CallDecl_class::code(ostream &s) {
   {
     getBody()->getStmts()->nth(i)->code(s);
   }
-  emit_pop(R15,s);
-  emit_pop(R14,s);
-  emit_pop(R13,s);
-  emit_pop(R12,s);
-  emit_pop(R11,s);
-  emit_pop(R10,s);
-  emit_pop(RBX,s);
-  emit_leave(s);
-  emit_ret(s);
+
   s<<SIZE<<name<<COMMA<<".-"<<name<<endl;
   var_shift->exitscope();
 
@@ -662,7 +715,32 @@ void ForStmt_class::code(ostream &s) {
 }
 
 void ReturnStmt_class::code(ostream &s) {
-  
+  if(!value->is_empty_Expr())
+  {
+    // if(value->get_is_global())
+    // {
+    //   s << MOV; value->code(s); s << '(' << RIP << ')'<< COMMA << RAX <<endl;
+    // }
+    // else
+    // {
+    //   value->code(s);
+    //   if(value->getType()==Int) s << MOV <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << RAX <<endl;
+    //   else s << MOVAPS <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << XMM0 <<endl;      
+    // }
+    value->code(s);
+    if(value->getType()==Int) s << MOV <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << RAX <<endl;
+    else s << MOVAPS <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << XMM0 <<endl;      
+
+  }
+  emit_pop(R15,s);
+  emit_pop(R14,s);
+  emit_pop(R13,s);
+  emit_pop(R12,s);
+  emit_pop(R11,s);
+  emit_pop(R10,s);
+  emit_pop(RBX,s);
+  emit_leave(s);
+  emit_ret(s);
 }
 
 void ContinueStmt_class::code(ostream &s) {
@@ -673,60 +751,85 @@ void BreakStmt_class::code(ostream &s) {
 }
 
 void Call_class::code(ostream &s) {
-  int var_num=0;  //参数个数
-  // for(int i=getActuals()->first();getActuals()->more(i); i=getActuals()->next(i))
-  // {
-  //   var_num++;
-  // }
-  // char num[2] = {0};
+  int paras_num=0; //参数序号
+
   if (name == print)
   {
-    int current_float_num=0;
+    int float_num=0; //计数printf里的浮点数个数
+
     rbp_top -=8;
-    emit_sub("$8", RSP, s);
-    getActuals()->nth(getActuals()->first())->code(s); //输出movq	$.LC0, %rax
-    s << MOV << RAX << COMMA << rbp_top << '(' << RBP << ')'<<endl;
-    s << MOV <<  rbp_top << '(' << RBP << ')'<< COMMA << RDI<<endl;
     emit_sub("$8", RSP, s);
 
     if(getActuals()->more(getActuals()->first()))
     {
-      for(int i=getActuals()->next(getActuals()->first());getActuals()->more(i); i=getActuals()->next(i))
+      for(int i=getActuals()->first();getActuals()->more(i); i=getActuals()->next(i)) getActuals()->nth(i)->code(s);
+      for(int i=getActuals()->first();getActuals()->more(i); i=getActuals()->next(i))
       {
-        if(float_num==0)  current_float_num=0;
-        getActuals()->nth(i)->code(s);
-        if(current_float_num<float_num)
+        paras_num++;
+        switch (paras_num)
         {
-          s << MOVSD <<  getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')'<< COMMA << XMM0 <<endl;
-          current_float_num=float_num;
-        }
+        case 2: {s << MOV << getActuals()->nth(getActuals()->first())->get_result_shift() << '(' << RBP << ')' << COMMA << RDI <<endl;
+                 if(getActuals()->nth(i)->getType()==Int) {s << MOV << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << RSI <<endl;break;}
+                 else {if(getActuals()->nth(i)->getType()==Float) float_num++; s << MOVSD << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 <<endl;break;}}
+        case 3: {if(getActuals()->nth(i)->getType()==Int) {s << MOV << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << RDX <<endl;break;}
+                 else {if(getActuals()->nth(i)->getType()==Float) float_num++; s << MOVSD << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 <<endl;break;}}
+        case 4: {if(getActuals()->nth(i)->getType()==Int) {s << MOV << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << RCX <<endl;break;}
+                 else {if(getActuals()->nth(i)->getType()==Float) float_num++; s << MOVSD << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << XMM2 <<endl;break;}}
+        case 5: {if(getActuals()->nth(i)->getType()==Int) {s << MOV << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << R8 <<endl;break;}
+                 else {if(getActuals()->nth(i)->getType()==Float) float_num++; s << MOVSD << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << XMM3 <<endl;break;}}
+        case 6: {if(getActuals()->nth(i)->getType()==Int) {s << MOV << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << R9 <<endl;break;}
+                 else {if(getActuals()->nth(i)->getType()==Float) float_num++; s << MOVSD << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 <<endl;break;}}
+        default:  break;
+        } 
       }
-
+      if(paras_num<2) s << MOV << getActuals()->nth(getActuals()->first())->get_result_shift() << '(' << RBP << ')' << COMMA << RDI <<endl;
+      emit_sub("$8",RSP,s);
+      rbp_top-=8;
       s << MOVL << "$" << float_num << COMMA << EAX<<endl;
       float_num=0;
     }
     else
+    {
+      emit_sub("$8",RSP,s);
       emit_irmovl("0", EAX, s);
-     //不应该是3，而是浮点数个数
+    }
     emit_call("printf", s);
-      
-    return;
-  }
-  
-  //
-  /*
-   if function name is printf
 
-    // please set %eax to the number of Float parameters, num.
-    //  把%eax赋值为Float类型的参数个数, num
-    emit_sub("$8", RSP, s);
-    emit_irmovl(num, EAX, s);
-    emit_call("printf", s);
-      
+
     return;
   }
-  */
-  //
+
+
+  for(int i=getActuals()->first();getActuals()->more(i); i=getActuals()->next(i))
+  {
+    getActuals()->nth(i)->code(s);
+    paras_num++;
+    switch (paras_num)
+    {
+    case 1: {if(getActuals()->nth(i)->getType()==Int) {s << MOV << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << RDI <<endl;break;}
+             else {s << MOVSD << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << XMM0 <<endl;break;}}
+    case 2: {if(getActuals()->nth(i)->getType()==Int) {s << MOV << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << RSI <<endl;break;}
+             else {s << MOVSD << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << XMM1 <<endl;break;}}
+    case 3: {if(getActuals()->nth(i)->getType()==Int) {s << MOV << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << RDX <<endl;break;}
+             else {s << MOVSD << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << XMM2 <<endl;break;}}
+    case 4: {if(getActuals()->nth(i)->getType()==Int) {s << MOV << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << RCX <<endl;break;}
+             else {s << MOVSD << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << XMM3 <<endl;break;}}
+    case 5: {if(getActuals()->nth(i)->getType()==Int) {s << MOV << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << R8 <<endl;break;}
+             else {s << MOVSD << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 <<endl;break;}}
+    case 6: {if(getActuals()->nth(i)->getType()==Int) {s << MOV << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << R9 <<endl;break;}
+             else {s << MOVSD << getActuals()->nth(i)->get_result_shift() << '(' << RBP << ')' << COMMA << XMM4 <<endl;break;}}
+    default:  break;
+    }  
+
+
+  }
+  emit_call(name->get_string(),s);
+  rbp_top -= 8;
+  emit_sub("$8",RSP,s);
+  if(getType()==Int)  s << MOV << RAX << COMMA << rbp_top << '(' << RBP << ')'<< endl;
+  else s << MOVSD << XMM0 << COMMA << rbp_top << '(' << RBP << ')'<< endl;
+  result_shift=rbp_top;
+
 }
 
 void Actual_class::code(ostream &s) {
@@ -736,12 +839,31 @@ void Actual_class::code(ostream &s) {
 }
 
 void Assign_class::code(ostream &s) {
-  value->code(s);
-  s << MOV << value->get_result_shift() << '(' << RBP << ')' << COMMA << RAX << endl;
+  // if(value->get_is_global())
+  // {
+  //   s << MOV; value->code(s); s << '(' << RIP << ')'<< COMMA << RAX <<endl;
+  // }
+  // else
+  // {
+  //   value->code(s);
+  //   if(value->getType()==Int) s << MOV <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << RAX <<endl;
+  //   else s << MOVAPS <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << XMM0 <<endl;      
+  // }
   
+  value->code(s);
+  s << MOV <<  value->get_result_shift() << '(' << RBP << ')'<< COMMA << RAX <<endl;
   int lvalue_shift=0;
-  lvalue_shift=*(var_shift->lookup(lvalue->get_string()));
-  s << MOV << RAX << COMMA << lvalue_shift << '(' << RBP << ')'<< endl;
+  if(var_shift->lookup(lvalue->get_string()))
+  {
+    lvalue_shift=*(var_shift->lookup(lvalue->get_string()));
+    s << MOV << RAX << COMMA << lvalue_shift << '(' << RBP << ')'<< endl;
+  }
+  else
+  {
+    s << MOV << RAX << COMMA << lvalue->get_string() << '(' << RIP << ')'<<endl;
+  }
+  
+
 
 
 }
@@ -1310,10 +1432,12 @@ void Const_string_class::code(ostream &s) {
   s << MOV;
   stringtable.lookup_string(value->get_string())->code_ref(s);
   s << COMMA << RAX << endl;
+  s << MOV << RAX << COMMA << rbp_top << '(' << RBP << ')'<< endl;
+  result_shift = rbp_top;
+
 }
 
 void Const_float_class::code(ostream &s) {
- float_num ++;
  stringstream ss;
  ss<<value;
  double res;
@@ -1339,9 +1463,12 @@ void Const_bool_class::code(ostream &s) {
 
 void Object_class::code(ostream &s) {
  // 输出变量对应的偏移量，如-96(%rbp)
- result_shift=*(var_shift->lookup(var->get_string())); 
-//  if(is_e1)  e1_shift=*(var_shift->lookup(var->get_string()));
-//  else  e2_shift=*(var_shift->lookup(var->get_string()));
+ if(!var_shift->lookup(var->get_string()))
+ {
+  //  is_global=true;
+   s << var->get_string(); //输出全局变量
+ }
+ else result_shift=*(var_shift->lookup(var->get_string())); 
 }
 
 void No_expr_class::code(ostream &s) {
